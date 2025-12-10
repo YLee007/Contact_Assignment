@@ -72,12 +72,24 @@ def import_contacts():
 @app.route('/export_contacts', methods=['GET'])
 def export_contacts():
     try:
-        # 将联系人数据转换为适合 CSV 的格式
+        # 将联系人数据转换为适合 Excel 的格式
         export_data = []
         for contact in contacts:
             row = {"id": contact["id"], "name": contact["name"], "is_favorite": contact["is_favorite"]}
+            
+            # 为每种联系方式类型收集值
+            details_by_type = {}
             for detail in contact["contact_details"]:
-                row[detail["type"]] = detail["value"]
+                detail_type = detail["type"]
+                detail_value = detail["value"]
+                if detail_type not in details_by_type:
+                    details_by_type[detail_type] = []
+                details_by_type[detail_type].append(detail_value)
+
+            # 将收集到的值添加到 row 中，并创建多列（如果需要）
+            for detail_type, values in details_by_type.items():
+                for i, value in enumerate(values):
+                    row[f'{detail_type}_{i+1}'] = value
             export_data.append(row)
 
         df = pd.DataFrame(export_data)
