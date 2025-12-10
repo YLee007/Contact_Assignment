@@ -25,6 +25,7 @@
             <input type="file" id="import-file-input" accept=".xlsx" style="display: none;">
             <button id="import-btn">导入联系人</button>
             <button id="export-btn">导出联系人</button>
+            <button id="toggle-favorite-btn">显示收藏</button>
         </div>
     </div>
 
@@ -67,8 +68,10 @@
         const importFileInput = document.getElementById('import-file-input');
         const importBtn = document.getElementById('import-btn');
         const exportBtn = document.getElementById('export-btn');
+        const toggleFavoriteBtn = document.getElementById('toggle-favorite-btn');
 
         let currentEditingContact = null; // 用于存储当前正在编辑的联系人
+        let showFavoritesOnly = false; // 控制是否只显示收藏的联系人
 
         const API_BASE_URL = 'http://127.0.0.1:5000'; // 后端 API 地址
 
@@ -104,7 +107,10 @@
         }
 
         async function renderContacts() {
-            const contacts = await fetchContacts();
+            let contacts = await fetchContacts();
+            if (showFavoritesOnly) {
+                contacts = contacts.filter(contact => contact.is_favorite);
+            }
             contactList.innerHTML = ''; // 清空现有列表
             contacts.forEach(contact => {
                 const listItem = document.createElement('li');
@@ -197,6 +203,12 @@
 
         exportBtn.addEventListener('click', () => {
             window.location.href = `${API_BASE_URL}/export_contacts`;
+        });
+
+        toggleFavoriteBtn.addEventListener('click', () => {
+            showFavoritesOnly = !showFavoritesOnly;
+            toggleFavoriteBtn.textContent = showFavoritesOnly ? '显示所有' : '显示收藏';
+            renderContacts();
         });
 
         contactForm.addEventListener('submit', async (event) => {
