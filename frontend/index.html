@@ -12,16 +12,20 @@
         .contact-item.favorite { background: #fffacd; } /* 淡黄色表示收藏 */
         .favorite-btn { background: none; border: none; cursor: pointer; font-size: 1.5em; }
         .favorite-btn.is-favorite { color: gold; }
+        .header-section { text-align: center; margin-bottom: 20px; }
+        .button-group { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
     </style>
 </head>
 <body>
-    <h1>通讯录应用</h1>
+    <div class="header-section">
+        <h1>通讯录应用</h1>
 
-    <div>
-        <button id="add-contact-btn">添加新联系人</button>
-        <input type="file" id="import-file-input" accept=".xlsx" style="display: none;">
-        <button id="import-btn">导入联系人</button>
-        <button id="export-btn">导出联系人</button>
+        <div class="button-group">
+            <button id="add-contact-btn">添加新联系人</button>
+            <input type="file" id="import-file-input" accept=".xlsx" style="display: none;">
+            <button id="import-btn">导入联系人</button>
+            <button id="export-btn">导出联系人</button>
+        </div>
     </div>
 
     <ul id="contact-list" class="contact-list">
