@@ -14,6 +14,10 @@
         .favorite-btn.is-favorite { color: gold; }
         .header-section { text-align: center; margin-bottom: 20px; }
         .button-group { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
+        .contact-detail-line { margin-bottom: 0.2em; }
+        .detail-type-label { display: inline-block; width: 7em; text-align: left; margin-right: 0.5em; vertical-align: top; /* 调整宽度以适应最长标签 */ }
+        .detail-value-first { display: inline; /* 确保第一个值与标签在同一行 */ }
+        .detail-value-subsequent { display: block; margin-left: calc(7em + 0.5em); /* 确保后续值与第一个值对齐 */ }
     </style>
 </head>
 <body>
@@ -118,16 +122,41 @@
                 listItem.innerHTML = `
                     <div class="contact-info">
                         <h3>${contact.name}</h3>
-                        ${contact.contact_details.map(detail => `<p>${detail.type}: ${detail.value}</p>`).join('')}
-                    </div>
-                    <div>
-                        <button class="favorite-btn ${contact.is_favorite ? 'is-favorite' : ''}" data-id="${contact.id}">★</button>
-                        <button class="edit-contact-btn" data-id="${contact.id}">编辑</button>
-                        <button class="delete-contact-btn" data-id="${contact.id}">删除</button>
-                    </div>
-                `;
-                contactList.appendChild(listItem);
-            });
+                        ${(() => {
+                            const groupedDetails = {};
+                            contact.contact_details.forEach(detail => {
+                                if (!groupedDetails[detail.type]) {
+                                    groupedDetails[detail.type] = [];
+                                }
+                                groupedDetails[detail.type].push(detail.value);
+                            });
+                            
+                            return Object.keys(groupedDetails).map(type => {
+                                const values = groupedDetails[type];
+                                if (values.length === 0) return '';
+
+                                let htmlContent = `<span class="detail-type-label">${type}:</span>`;
+
+                                if (values.length > 0) {
+                                    htmlContent += `<span class="detail-value-first">${values[0]}</span>`;
+                                }
+
+                                for (let i = 1; i < values.length; i++) {
+                                    htmlContent += `<br><span class="detail-value-subsequent">${values[i]}</span>`;
+                                }
+
+                                return `<p class="contact-detail-line">${htmlContent}</p>`;
+                            }).join('');
+                          })()}
+                      </div>
+                      <div>
+                          <button class="favorite-btn ${contact.is_favorite ? 'is-favorite' : ''}" data-id="${contact.id}">★</button>
+                          <button class="edit-contact-btn" data-id="${contact.id}">编辑</button>
+                          <button class="delete-contact-btn" data-id="${contact.id}">删除</button>
+                      </div>
+                  `;
+                  contactList.appendChild(listItem);
+              });
         }
 
         function openModal(contact = null) {
