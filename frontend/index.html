@@ -159,6 +159,8 @@
                 <select class="detail-type">
                     <option value="phone" ${type === 'phone' ? 'selected' : ''}>电话</option>
                     <option value="email" ${type === 'email' ? 'selected' : ''}>邮箱</option>
+                    <option value="social_media" ${type === 'social_media' ? 'selected' : ''}>社交媒体</option>
+                    <option value="address" ${type === 'address' ? 'selected' : ''}>地址</option>
                     <option value="other" ${type === 'other' ? 'selected' : ''}>其他</option>
                 </select>
                 <input type="text" class="detail-value" value="${value}" required>
