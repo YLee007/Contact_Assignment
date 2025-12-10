@@ -52,16 +52,38 @@ def import_contacts():
             for index, row in df.iterrows():
                 new_id = max([c["id"] for c in contacts]) + 1 if contacts else 1
                 contact_details = []
-                if pd.notna(row.get('phone')):
-                    contact_details.append({"type": "phone", "value": str(row['phone'])})
-                if pd.notna(row.get('email')):
-                    contact_details.append({"type": "email", "value": str(row['email'])})
-                # 可以根据需要添加更多联系方式类型
+                
+                # 尝试解析标准列 (phone, email) 和多列 (phone_1, email_1, social_media_1, etc.)
+                for col_name in df.columns:
+                    if col_name == 'is_favorite': # 跳过 is_favorite 列，因为它不是联系方式详情
+                        continue
+
+                    if pd.notna(row.get(col_name)):
+                        value = row[col_name]
+                        
+                        # 尝试将数字转换为整数再转字符串，以去除 .0
+                        if isinstance(value, (int, float)):
+                            if value == int(value): # 如果是整数，则转换为整数
+                                value = str(int(value))
+                            else:
+                                value = str(value)
+                        else:
+                            value = str(value) # 确保所有值都是字符串
+                        
+                        # 匹配 phone_N, email_N, social_media_N, address_N, other_N
+                        if '_' in col_name:
+                            parts = col_name.rsplit('_', 1)
+                            detail_type = parts[0]
+                            contact_details.append({"type": detail_type, "value": value})
+                        # 兼容旧的单一 phone/email 列以及新的 social_media, address, other
+                        elif col_name in ["phone", "email", "social_media", "address", "other"]:
+                            contact_details.append({"type": col_name, "value": value})
+
                 new_contact = {
                     "id": new_id,
                     "name": row.get('name', ''),
                     "contact_details": contact_details,
-                    "is_favorite": False
+                    "is_favorite": row.get('is_favorite', False) # 导入时也应考虑收藏状态
                 }
                 contacts.append(new_contact)
             return jsonify({"message": "联系人导入成功"}), 200
