@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS # 导入 CORS
 import pandas as pd # 导入 pandas
 import io # 导入 io 模块
+import os
 
 app = Flask(__name__)
 CORS(app)  # 启用 CORS
@@ -41,55 +42,94 @@ def create_contact():
 @app.route('/import_contacts', methods=['POST'])
 def import_contacts():
     if 'file' not in request.files:
-        return jsonify({"error": "没有文件部分"}), 400
+        return jsonify({"error": "没有文件部分（字段名应为 file）"}), 400
+
     file = request.files['file']
-    if file.filename == '':
+    if not file or file.filename == '':
         return jsonify({"error": "未选择文件"}), 400
-    if file and file.filename.endswith(('.xlsx', '.xls')):
-        try:
-            # 使用 pd.read_excel() 读取 Excel 文件
-            df = pd.read_excel(file)
-            for index, row in df.iterrows():
-                new_id = max([c["id"] for c in contacts]) + 1 if contacts else 1
-                contact_details = []
-                
-                # 尝试解析标准列 (phone, email) 和多列 (phone_1, email_1, social_media_1, etc.)
-                for col_name in df.columns:
-                    if col_name == 'is_favorite': # 跳过 is_favorite 列，因为它不是联系方式详情
-                        continue
 
-                    if pd.notna(row.get(col_name)):
-                        value = row[col_name]
-                        
-                        # 尝试将数字转换为整数再转字符串，以去除 .0
-                        if isinstance(value, (int, float)):
-                            if value == int(value): # 如果是整数，则转换为整数
-                                value = str(int(value))
-                            else:
-                                value = str(value)
+    filename = file.filename or ""
+    _, ext = os.path.splitext(filename.lower())
+
+    # 同时支持 xlsx 和 xls
+    if ext not in ('.xlsx', '.xls', '.xlsm'):
+        return jsonify({"error": "不支持的文件类型，请上传 .xlsx 或 .xls"}), 400
+
+    # 按扩展名显式选择 pandas 引擎
+    engine = None
+    if ext in ('.xlsx', '.xlsm'):
+        engine = 'openpyxl'
+    elif ext == '.xls':
+        engine = 'xlrd'
+
+    try:
+        # 显式 engine，避免 pandas 在服务端环境里猜错/缺依赖
+        df = pd.read_excel(file, engine=engine)
+
+        # 基础校验：必须有 name 列（否则 name 取不到）
+        if 'name' not in df.columns:
+            return jsonify({"error": "Excel 缺少必需列：name（联系人姓名）"}), 400
+
+        for _, row in df.iterrows():
+            new_id = max([c["id"] for c in contacts]) + 1 if contacts else 1
+            contact_details = []
+
+            for col_name in df.columns:
+                if col_name in ('id',):  # 可选：忽略 id 列（导入时重新生成）
+                    continue
+                if col_name == 'name':
+                    continue
+                if col_name == 'is_favorite':
+                    continue
+
+                if pd.notna(row.get(col_name)):
+                    value = row[col_name]
+
+                    # 数值去 .0
+                    if isinstance(value, (int, float)):
+                        if value == int(value):
+                            value = str(int(value))
                         else:
-                            value = str(value) # 确保所有值都是字符串
-                        
-                        # 匹配 phone_N, email_N, social_media_N, address_N, other_N
-                        if '_' in col_name:
-                            parts = col_name.rsplit('_', 1)
-                            detail_type = parts[0]
-                            contact_details.append({"type": detail_type, "value": value})
-                        # 兼容旧的单一 phone/email 列以及新的 social_media, address, other
-                        elif col_name in ["phone", "email", "social_media", "address", "other"]:
-                            contact_details.append({"type": col_name, "value": value})
+                            value = str(value)
+                    else:
+                        value = str(value)
 
-                new_contact = {
-                    "id": new_id,
-                    "name": row.get('name', ''),
-                    "contact_details": contact_details,
-                    "is_favorite": row.get('is_favorite', False) # 导入时也应考虑收藏状态
-                }
-                contacts.append(new_contact)
-            return jsonify({"message": "联系人导入成功"}), 200
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-    return jsonify({"error": "不支持的文件类型"}), 400
+                    # phone_1 / email_2 等
+                    if '_' in col_name:
+                        parts = col_name.rsplit('_', 1)
+                        detail_type = parts[0]
+                        contact_details.append({"type": detail_type, "value": value})
+                    elif col_name in ["phone", "email", "social_media", "address", "other"]:
+                        contact_details.append({"type": col_name, "value": value})
+
+            # is_favorite 兼容转换（可能是 0/1、TRUE/FALSE、空）
+            fav = row.get('is_favorite', False)
+            if isinstance(fav, str):
+                fav = fav.strip().lower() in ('1', 'true', 'yes', 'y', '是')
+            elif isinstance(fav, (int, float)):
+                fav = bool(int(fav)) if pd.notna(fav) else False
+            elif pd.isna(fav):
+                fav = False
+
+            new_contact = {
+                "id": new_id,
+                "name": str(row.get('name', '') if pd.notna(row.get('name')) else ''),
+                "contact_details": contact_details,
+                "is_favorite": fav
+            }
+            contacts.append(new_contact)
+
+        return jsonify({"message": "联系人导入成功"}), 200
+
+    except ImportError as e:
+        # 缺引擎依赖时给明确提示
+        if engine == 'xlrd':
+            return jsonify({"error": "服务器未安装 xlrd，无法导入 .xls。请安装 xlrd 后重试。", "detail": str(e)}), 500
+        if engine == 'openpyxl':
+            return jsonify({"error": "服务器未安装 openpyxl，无法导入 .xlsx。请安装 openpyxl 后重试。", "detail": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/export_contacts', methods=['GET'])
 def export_contacts():
