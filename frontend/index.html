@@ -85,8 +85,16 @@
         async function fetchContacts() {
             try {
                 const response = await fetch(`${API_BASE_URL}/contacts`);
+
+                if (!response.ok) {
+                    const text = await response.text();
+                    console.error('获取联系人失败 HTTP:', response.status);
+                    console.error('获取联系人失败响应体:', text);
+                    return [];
+                }
+
                 const data = await response.json();
-                return data;
+                return Array.isArray(data) ? data : [];
             } catch (error) {
                 console.error('获取联系人失败:', error);
                 return [];
@@ -273,7 +281,11 @@
                 }
                 alert(okMsg);
 
-                renderContacts(); // 重新渲染列表
+                // 关键：导入后强制显示全部，避免“只看收藏”导致看不到新增
+                showFavoritesOnly = false;
+                toggleFavoriteBtn.textContent = '显示收藏';
+
+                await renderContacts();
             } catch (error) {
                 console.error('导入联系人请求异常:', error);
                 alert('导入联系人请求异常（网络/跨域/代理问题），请查看控制台');
