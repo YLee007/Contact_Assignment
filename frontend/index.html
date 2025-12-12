@@ -215,24 +215,71 @@
             const file = event.target.files[0];
             if (!file) return;
 
+            // 1) 基础校验：扩展名与大小
+            const lowerName = (file.name || '').toLowerCase();
+            if (!lowerName.endsWith('.xlsx') && !lowerName.endsWith('.xls')) {
+                alert('请选择 .xlsx 或 .xls 格式的 Excel 文件');
+                event.target.value = '';
+                return;
+            }
+            // 可按需调整大小上限（比如 10MB）
+            const maxSizeMB = 10;
+            if (file.size > maxSizeMB * 1024 * 1024) {
+                alert(`文件过大，请选择小于 ${maxSizeMB}MB 的文件`);
+                event.target.value = '';
+                return;
+            }
+
             const formData = new FormData();
-            formData.append('file', file);
+            // 字段名保持为 file（与后端常见约定一致）
+            formData.append('file', file, file.name);
 
             try {
                 const response = await fetch(`${API_BASE_URL}/import_contacts`, {
                     method: 'POST',
                     body: formData,
                 });
+
+                // 2) 无论成功失败，先读取响应体，方便定位 500
+                const contentType = response.headers.get('content-type') || '';
+                const rawText = await response.text();
+
                 if (!response.ok) {
-                    throw new Error('导入失败');
+                    console.error('导入失败 HTTP:', response.status);
+                    console.error('导入失败响应体:', rawText);
+
+                    // 优先尝试展示 JSON 错误信息
+                    let msg = rawText;
+                    if (contentType.includes('application/json')) {
+                        try {
+                            const json = JSON.parse(rawText);
+                            msg = json.message || json.error || JSON.stringify(json);
+                        } catch (_) {
+                            // ignore
+                        }
+                    }
+
+                    alert(`导入失败（HTTP ${response.status}）\n\n${String(msg).slice(0, 1200)}`);
+                    return;
                 }
-                alert('联系人导入成功！');
+
+                // 3) 成功：如果返回 JSON 就解析 JSON，否则直接提示
+                let okMsg = '联系人导入成功！';
+                if (contentType.includes('application/json')) {
+                    try {
+                        const json = JSON.parse(rawText);
+                        okMsg = json.message || okMsg;
+                    } catch (_) {}
+                }
+                alert(okMsg);
+
                 renderContacts(); // 重新渲染列表
             } catch (error) {
-                console.error('导入联系人失败:', error);
-                alert('导入联系人失败！');
+                console.error('导入联系人请求异常:', error);
+                alert('导入联系人请求异常（网络/跨域/代理问题），请查看控制台');
+            } finally {
+                event.target.value = ''; // 清空文件输入，以便再次导入相同文件
             }
-            event.target.value = ''; // 清空文件输入，以便再次导入相同文件
         });
 
         exportBtn.addEventListener('click', () => {
