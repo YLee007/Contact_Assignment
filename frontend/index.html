@@ -77,7 +77,10 @@
         let currentEditingContact = null; // 用于存储当前正在编辑的联系人
         let showFavoritesOnly = false; // 控制是否只显示收藏的联系人
 
-        const API_BASE_URL = 'http://127.0.0.1:5000'; // 后端 API 地址
+        // 后端 API 地址 - 生产环境使用相对路径，开发环境使用完整 URL
+        const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+            ? 'http://127.0.0.1:5000' 
+            : '/contacts/api'; // 生产环境通过 Nginx 代理（子路径配置）
 
         async function fetchContacts() {
             try {
